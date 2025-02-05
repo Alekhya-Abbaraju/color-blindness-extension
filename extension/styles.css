@@ -1,11 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Inter', sans-serif;
     text-align: center;
+    width: 250px;
+    background-color: #FFEDFA;
+    padding: 0;
+    margin: 0;
+    border-radius: 50%;
+    box-shadow: 5px 4px 6px rgba(30, 19, 19, 0.1);
+
+}
+h3{
+    font-size: 20px;
+    font-weight: bold;
+}
+.c{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap:10px;
+    margin: 10px 5px;
 }
 button {
+    padding: 8px 5px;
+    background-color: #DE3163;
+    color:white;
     display: block;
     margin: 10px auto;
-    padding: 10px;
     width: 150px;
     font-size: 16px;
+    border: none;
+    border-radius: 30px;
+    font-weight: bold;
+}
+
+button:hover{
+    background-color: #de0c47;
+    transform: scale(0.9);
+}
+
+select{
+    width: 100%;
+    padding: 6px;
+    border-radius: 5px;
+    background-color:#E195AB ;
+    font-weight: bold;
 }

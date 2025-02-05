@@ -5,61 +5,57 @@ from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 import requests
+import imghdr
 
 app = FastAPI()
 
-# Enable CORS for all origins (can be restricted later if needed)
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins; adjust as needed
+    allow_origins=["*"],  
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/")
-async def read_root():
-    return {"message": "Welcome to the image processing API"}
+async def root():
+    return {"message": "Color Blindness API is running!"}
+
+# Color blindness filters
+FILTERS = {
+    'protanopia': np.array([[0.567, 0.433, 0], [0.558, 0.442, 0], [0, 0.242, 0.758]]),
+    'deutanopia': np.array([[0.625, 0.375, 0], [0.7, 0.3, 0], [0, 0.3, 0.7]]),
+    'tritanopia': np.array([[0.95, 0.05, 0], [0, 0.433, 0.567], [0, 0.475, 0.525]]),
+}
+
+
 
 def apply_filter(image: Image, filter_type: str) -> Image:
     """Applies the selected color blindness filter to the image."""
+    if filter_type not in FILTERS:
+        raise ValueError("Invalid filter type")
+    
     image = image.convert("RGB")
     img_array = np.array(image)
-
-    filter_map = {
-        'protanopia': np.array([[0.567, 0.433, 0], [0.558, 0.442, 0], [0, 0.242, 0.758]]),
-        'deutanopia': np.array([[0.625, 0.375, 0], [0.7, 0.3, 0], [0, 0.3, 0.7]]),
-        'tritanopia': np.array([[0.95, 0.05, 0], [0, 0.433, 0.567], [0, 0.475, 0.525]]),
-    }
-
-    if filter_type not in filter_map:
-        raise ValueError("Invalid filter type")
-
-    transformation_matrix = filter_map[filter_type]
-    transformed = np.dot(img_array[..., :3], transformation_matrix.T)
+    transformed = np.dot(img_array[..., :3], FILTERS[filter_type].T)
     transformed = np.clip(transformed, 0, 255).astype(np.uint8)
-
     return Image.fromarray(transformed)
-from fastapi import HTTPException
-import imghdr
 
 @app.get("/process-image/")
 async def process_image(
-    filter_type: str = Query(..., enum=["protanopia", "deutanopia", "tritanopia"]),
+    filter_type: str = Query(..., enum=FILTERS.keys()),
     image_url: str = Query(..., regex="https?://.*")
 ):
     try:
-        # Download the image
         response = requests.get(image_url)
         if response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to fetch image from URL")
+            raise HTTPException(status_code=400, detail="Failed to fetch image")
 
-        # Check the file type
-        image_type = imghdr.what(None, response.content)
+        image_type = imghdr.what(None, h=response.content[:32])
         if image_type not in ['jpeg', 'png']:
             raise HTTPException(status_code=400, detail="Unsupported image format")
 
-        # Process image
         with Image.open(BytesIO(response.content)) as image:
             filtered_image = apply_filter(image, filter_type)
             img_byte_arr = BytesIO()
@@ -68,5 +64,7 @@ async def process_image(
 
             return StreamingResponse(img_byte_arr, media_type="image/jpeg")
 
+    except UnidentifiedImageError:
+        raise HTTPException(status_code=400, detail="Invalid image file")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
