@@ -1,7 +1,7 @@
 function applyColorBlindnessFilter(filterType) {
     document.querySelectorAll("img").forEach((img) => {
         const imageUrl = img.src;
-        
+
         if (!imageUrl.startsWith("http")) {
             console.warn("Skipping image (Invalid URL):", imageUrl);
             return;
@@ -11,17 +11,18 @@ function applyColorBlindnessFilter(filterType) {
         console.log("API Request:", apiUrl);
 
         fetch(apiUrl)
-            .then(response => {
+            .then(async response => {
                 if (!response.ok) {
-                    console.error("API Error:", response.status);
                     return response.json().then(err => {
-                        throw new Error(`API error: ${JSON.stringify(err)}`);
+                        console.error("API Error:", err.detail);
+                        throw new Error(`API error: ${err.detail}`);
                     });
                 }
                 return response.blob();
             })
             .then(blob => {
-                img.src = URL.createObjectURL(blob);
+                const objectUrl = URL.createObjectURL(blob);
+                img.src = objectUrl;
             })
             .catch(error => console.error("Failed to apply filter:", error));
     });

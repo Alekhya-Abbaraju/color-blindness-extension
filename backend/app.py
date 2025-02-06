@@ -5,7 +5,6 @@ from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 import requests
-import imghdr
 
 app = FastAPI()
 
@@ -29,8 +28,6 @@ FILTERS = {
     'tritanopia': np.array([[0.95, 0.05, 0], [0, 0.433, 0.567], [0, 0.475, 0.525]]),
 }
 
-
-
 def apply_filter(image: Image, filter_type: str) -> Image:
     """Applies the selected color blindness filter to the image."""
     if filter_type not in FILTERS:
@@ -48,21 +45,32 @@ async def process_image(
     image_url: str = Query(..., regex="https?://.*")
 ):
     try:
-        response = requests.get(image_url)
+        # Fetch image with headers to prevent blocking
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(image_url, headers=headers, stream=True)
+        
         if response.status_code != 200:
             raise HTTPException(status_code=400, detail="Failed to fetch image")
 
-        image_type = imghdr.what(None, h=response.content[:32])
-        if image_type not in ['jpeg', 'png']:
-            raise HTTPException(status_code=400, detail="Unsupported image format")
+        # Read content and ensure it's an image
+        content_type = response.headers.get("Content-Type", "")
+        valid_mime_types = ["image/jpeg", "image/png"]
 
-        with Image.open(BytesIO(response.content)) as image:
-            filtered_image = apply_filter(image, filter_type)
-            img_byte_arr = BytesIO()
-            filtered_image.save(img_byte_arr, format="JPEG")
-            img_byte_arr.seek(0)
+        if not any(mime in content_type for mime in valid_mime_types):
+            raise HTTPException(status_code=400, detail=f"Unsupported image format: {content_type}")
 
-            return StreamingResponse(img_byte_arr, media_type="image/jpeg")
+        # Convert response content to Image
+        image = Image.open(BytesIO(response.content))
+
+        # Apply filter
+        filtered_image = apply_filter(image, filter_type)
+        
+        # Convert to bytes for response
+        img_byte_arr = BytesIO()
+        filtered_image.save(img_byte_arr, format="JPEG")
+        img_byte_arr.seek(0)
+
+        return StreamingResponse(img_byte_arr, media_type="image/jpeg")
 
     except UnidentifiedImageError:
         raise HTTPException(status_code=400, detail="Invalid image file")
